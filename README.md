@@ -10,7 +10,7 @@ Key Features:
 Realtime Editing: Generate and Edit Images, Anime, and Videos directly.
 Interactive Elements: Collaborate with friends while generating.
 Privacy: Ensuring a safe and secure environment for all generations.
-
+ 
 Contributing:
 We welcome contributions! Whether it's suggesting new features, fixing bugs, or improving documentation, your input is valuable. Contribution Guidlines will be updated soon
 
