@@ -9,13 +9,17 @@ import {
     Pencil,
     Trash2,
 } from "lucide-react"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getChats, renameChat, deleteChat } from "@/app/actions/chat-actions";
+import { toast } from "sonner";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatDistanceToNow } from "date-fns";
 
 interface AppSidebarProps {
     className?: string;
@@ -25,39 +29,71 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ className, isOpen, onClose, onNewChat }: AppSidebarProps) {
-    const [history, setHistory] = useState([
-        { id: '1', title: "Yesterday's Session...", date: 'Yesterday' },
-        { id: '2', title: "Cyberpunk City...", date: '2 days ago' },
-        { id: '3', title: "Neon Samurai...", date: '3 days ago' },
-        { id: '4', title: "Abstract Shapes...", date: '4 days ago' },
-        { id: '5', title: "Mountain Landscape...", date: '5 days ago' },
-        { id: '6', title: "Future Car Design...", date: '6 days ago' },
-        { id: '7', title: "Space Station Interior...", date: '1 week ago' },
-    ]);
+    const [history, setHistory] = useState<any[]>([]);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchHistory = async () => {
+        try {
+            const chats = await getChats();
+            setHistory(chats || []);
+        } catch (error) {
+            console.error("Failed to load history", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchHistory();
+        }
+    }, [isOpen]);
+
+    // Also fetch on mount
+    useEffect(() => {
+        fetchHistory();
+    }, []);
 
     const handleRename = (id: string, currentTitle: string) => {
         setEditingId(id);
         setEditValue(currentTitle);
-        setActiveMenuId(null); // Menu closes when renaming starts
+        setActiveMenuId(null);
     };
 
-    const saveRename = (id: string) => {
+    const saveRename = async (id: string) => {
+        if (!editValue.trim() || editValue === history.find(h => h.id === id)?.title) {
+            setEditingId(null);
+            return;
+        }
+
+        const oldHistory = [...history];
+        // Optimistic update
         setHistory(prev => prev.map(item => item.id === id ? { ...item, title: editValue } : item));
         setEditingId(null);
-        onClose(); // Close sidebar after rename
+
+        const result = await renameChat(id, editValue);
+        if (result?.error) {
+            setHistory(oldHistory);
+            toast.error("Failed to rename chat");
+        }
     };
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
+        const oldHistory = [...history];
         setHistory(prev => prev.filter(item => item.id !== id));
         setActiveMenuId(null);
-        onClose(); // Close sidebar after delete
+
+        const result = await deleteChat(id);
+        if (result?.error) {
+            setHistory(oldHistory);
+            toast.error("Failed to delete chat");
+        }
     };
 
     const handleMouseLeave = () => {
-        // Only close if no menu is open and not currently editing
         if (!activeMenuId && !editingId) {
             onClose();
         }
@@ -82,7 +118,7 @@ export function AppSidebar({ className, isOpen, onClose, onNewChat }: AppSidebar
             </div>
 
             <div className="flex-1 relative overflow-hidden flex flex-col min-h-0">
-                <div className="p-4 pb-4 border-t absolute bottom-0 w-full">
+                <div className="p-4 pb-4 border-t absolute bottom-0 w-full z-10 bg-white dark:bg-black">
                     <Button
                         className="w-full justify-center border items-center cursor-pointer rounded-none"
                         onClick={() => {
@@ -94,62 +130,70 @@ export function AppSidebar({ className, isOpen, onClose, onNewChat }: AppSidebar
                     </Button>
                 </div>
 
-                {/* Add an input and make search functionality across the histories */}
+                <div className="flex-1 overflow-hidden">
+                    <ScrollArea className="h-[calc(100vh-140px)]">
+                        <h4 className="px-4 pt-6 pb-2 text-xs font-semibold text-muted-foreground tracking-wider">
+                            History
+                        </h4>
+                        <div className="space-y-1 px-2 pb-4">
+                            {history.length === 0 && !isLoading && (
+                                <p className="text-xs text-muted-foreground px-4">No recent history.</p>
+                            )}
 
-                <div className="flex-1 overflow-y-auto px-2 min-h-0 custom-scrollbar">
-                    <h4 className="px-4 pt-10 pb-5 text-xs font-semibold text-muted-foreground tracking-wider sticky top-0 z-10">
-                        History
-                    </h4>
-                    <div className="space-y-1 px-2 pb-4">
-                        {history.map((item) => (
-                            <div key={item.id} className="group relative flex items-center">
-                                {editingId === item.id ? (
-                                    <div className="flex items-center gap-1 w-full px-2 py-1">
-                                        <input
-                                            value={editValue}
-                                            onChange={(e) => setEditValue(e.target.value)}
-                                            onBlur={() => saveRename(item.id)}
-                                            onKeyDown={(e) => e.key === 'Enter' && saveRename(item.id)}
-                                            className="flex-1 text-sm px-1 py-0.5 rounded-none border-none focus:ring-1 focus:ring-primary outline-none"
-                                            autoFocus
-                                        />
-                                    </div>
-                                ) : (
-                                    <Button
-                                        size="sm"
-                                        className="w-full justify-start font-normal text-muted-foreground hover:text-foreground pr-8 truncate h-9 bg-white dark:bg-black border rounded-none py-3"
-                                    >
-                                        <span className="truncate text-left">{item.title}</span>
-                                    </Button>
-                                )}
+                            {history.map((item) => (
+                                <div key={item.id} className="group relative flex items-center">
+                                    {editingId === item.id ? (
+                                        <div className="flex items-center gap-1 w-full px-2 py-1">
+                                            <input
+                                                value={editValue}
+                                                onChange={(e) => setEditValue(e.target.value)}
+                                                onBlur={() => saveRename(item.id)}
+                                                onKeyDown={(e) => e.key === 'Enter' && saveRename(item.id)}
+                                                className="flex-1 text-sm px-1 py-0.5 rounded-none border-none focus:ring-1 focus:ring-primary outline-none bg-transparent"
+                                                autoFocus
+                                            />
+                                        </div>
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="w-full justify-start font-normal text-muted-foreground hover:text-foreground pr-8 truncate h-auto py-2 rounded-none"
+                                        >
+                                            <div className="flex flex-col items-start overflow-hidden">
+                                                <span className="truncate w-full text-left">{item.title}</span>
+                                                <span className="text-[10px] opacity-50">{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</span>
+                                            </div>
+                                        </Button>
+                                    )}
 
-                                {!editingId && (
-                                    <div className="absolute right-1 transition-opacity text-black dark:text-white backdrop-blur-sm rounded-none">
-                                        <DropdownMenu onOpenChange={(open) => setActiveMenuId(open ? item.id : null)}>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button size="icon" className="h-6 w-6 rounded-full bg-white dark:bg-black text-black dark:text-white">
-                                                    <MoreHorizontal className="w-3 h-3" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent className="rounded-none" align="start">
-                                                <DropdownMenuItem onClick={() => handleRename(item.id, item.title)}>
-                                                    <Pencil className="w-4 h-4 mr-2" />
-                                                    Rename
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => handleDelete(item.id)}
-                                                    className="text-red-500 focus:text-red-500 focus:bg-red-50 dark:focus:bg-red-950/20"
-                                                >
-                                                    <Trash2 className="w-4 h-4 mr-2" />
-                                                    Delete
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
+                                    {!editingId && (
+                                        <div className="absolute right-1 transition-opacity text-black dark:text-white backdrop-blur-sm rounded-none opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                                            <DropdownMenu onOpenChange={(open) => setActiveMenuId(open ? item.id : null)}>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button size="icon" variant="ghost" className="h-6 w-6 rounded-full hover:bg-muted">
+                                                        <MoreHorizontal className="w-3 h-3" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent className="rounded-none" align="start">
+                                                    <DropdownMenuItem onClick={() => handleRename(item.id, item.title)}>
+                                                        <Pencil className="w-4 h-4 mr-2" />
+                                                        Rename
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleDelete(item.id)}
+                                                        className="text-red-500 focus:text-red-500 focus:bg-red-50 dark:focus:bg-red-950/20"
+                                                    >
+                                                        <Trash2 className="w-4 h-4 mr-2" />
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
                 </div>
             </div>
         </div>

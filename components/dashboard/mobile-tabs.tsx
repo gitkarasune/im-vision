@@ -5,12 +5,12 @@ import { cn } from '@/lib/utils';
 import { Sparkles, Check, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-export type TabStatus = 'idle' | 'loading' | 'success' | 'error';
+export type TabStatus = 'idle' | 'loading' | 'generating' | 'success' | 'error';
 
 interface MobileTabsProps {
     activeTab: 'chat' | 'preview';
     onTabChange: (tab: 'chat' | 'preview') => void;
-    status?: TabStatus; // 'idle' | 'loading' | 'success' | 'error'
+    status?: TabStatus; // 'idle' | 'loading' | 'generating' | 'success' | 'error'
     isLoading?: boolean; // Keep for backward compat if needed, but prefer status
 }
 
@@ -57,7 +57,7 @@ export function MobileTabs({ activeTab, onTabChange, status = 'idle', isLoading 
                             {/* Status Indicators for Preview Tab */}
                             {tab.id === 'preview' && (
                                 <AnimatePresence mode="wait">
-                                    {effectiveStatus === 'loading' && (
+                                    {(effectiveStatus === 'loading' || effectiveStatus === 'generating') && (
                                         <motion.div
                                             key="loading"
                                             initial={{ scale: 0, opacity: 0 }}

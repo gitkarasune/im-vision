@@ -3,8 +3,7 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PromptInput, type PromptSettings } from './prompt-input';
 import { cn } from '@/lib/utils';
-import { User, Sparkles, Copy, Edit2, Share2, Check, Clock, ArrowDown, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Copy, Edit2, Check, ArrowDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useEffect, useRef, useState } from 'react';
