@@ -26,9 +26,11 @@ interface AppSidebarProps {
     isOpen: boolean;
     onClose: () => void;
     onNewChat?: () => void;
+    refreshTrigger?: number;
+    onSelectChat?: (id: string) => void;
 }
 
-export function AppSidebar({ className, isOpen, onClose, onNewChat }: AppSidebarProps) {
+export function AppSidebar({ className, isOpen, onClose, onNewChat, refreshTrigger = 0, onSelectChat }: AppSidebarProps) {
     const [history, setHistory] = useState<any[]>([]);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState("");
@@ -52,10 +54,10 @@ export function AppSidebar({ className, isOpen, onClose, onNewChat }: AppSidebar
         }
     }, [isOpen]);
 
-    // Also fetch on mount
+    // Also fetch on mount and when trigger changes
     useEffect(() => {
         fetchHistory();
-    }, []);
+    }, [refreshTrigger]);
 
     const handleRename = (id: string, currentTitle: string) => {
         setEditingId(id);
@@ -158,9 +160,16 @@ export function AppSidebar({ className, isOpen, onClose, onNewChat }: AppSidebar
                                             size="sm"
                                             variant="ghost"
                                             className="w-full justify-start font-normal text-muted-foreground hover:text-foreground pr-8 truncate h-auto py-2 rounded-none"
+                                            onClick={() => {
+                                                if (onSelectChat) onSelectChat(item.id);
+                                                // Optional: Close on mobile?
+                                                if (window.innerWidth < 768) onClose();
+                                            }}
                                         >
-                                            <div className="flex flex-col items-start overflow-hidden">
-                                                <span className="truncate w-full text-left">{item.title}</span>
+                                            <div className="flex flex-col items-start overflow-hidden w-full">
+                                                <span className="truncate w-full text-left text-sm" title={item.title}>
+                                                    {item.title.length > 20 ? item.title.slice(0, 20) + "..." : item.title}
+                                                </span>
                                                 <span className="text-[10px] opacity-50">{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</span>
                                             </div>
                                         </Button>

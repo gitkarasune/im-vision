@@ -95,7 +95,7 @@ export function ChatInterface({ messages, onGenerate, isLoading }: ChatInterface
                             <h3 className="text-xl font-semibold text-foreground mb-7">What would you like to create?</h3>
 
                             {/* Rotating Prompts */}
-                            <RotatingPrompts onSelect={setInputPrompt} />
+                            <RotatingPrompts onSelect={setInputPrompt} isLoading={isLoading} />
                         </div>
                     )}
 
@@ -166,7 +166,7 @@ export function ChatInterface({ messages, onGenerate, isLoading }: ChatInterface
                     ))}
 
                     {/* Pending Indicator */}
-                    {!isLoading && (
+                    {isLoading && (
                         <div className="flex w-full justify-start animate-in fade-in duration-300">
                             <div className="bg-white dark:bg-black text-black dark:text-white rounded-none size=12 shadow-none">
                                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -48,7 +48,12 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-black text-black dark:text-white relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-black text-black dark:text-white relative is-home-page selection:bg-black/5 selection:dark:bg-white/10">
+
+      {/* Background Pattern - Radial Gradient */}
+      <div className="absolute inset-0 z-0 pointer-events-none select-none">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(0,0,0,0.08)_0%,transparent_50%)] dark:bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.12)_0%,transparent_50%)]" />
+      </div>
 
       {/* Auth Modal */}
       <AuthModal
@@ -82,7 +87,7 @@ export default function Home() {
           />
 
           {/* Rotating Prompts */}
-          <RotatingPrompts onSelect={setPromptValue} />
+          <RotatingPrompts onSelect={setPromptValue} isLoading={isLoading} />
         </div>
       </main>
     </div>

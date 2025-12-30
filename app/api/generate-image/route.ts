@@ -1,14 +1,26 @@
 import { NextResponse } from 'next/server';
+import { saveMessage, saveGeneratedImage } from '@/app/actions/chat-actions';
 
 export async function POST(request: Request) {
   try {
-    const { prompt } = await request.json();
+    const { prompt, conversationId, packshotMode, realisticShadows, aspectRatio } = await request.json();
 
     if (!prompt) {
       return NextResponse.json(
         { error: 'Prompt is required' },
         { status: 400 }
       );
+    }
+
+    // Check if conversation ID provided. If not, client should have created one. or we create here?
+    // Client ensures conversationId via createChat for new chats. But here, let's assume client passes it.
+    // If client is just "prompting" without chat ID (logic we updated in dashboard), dashboard creates chat first.
+    // So conversationId is expected.
+
+    if (!conversationId) {
+      // Fallback or error? Let's just create one if missing or error.
+      // Actually, let's require it for persistence.
+      if (process.env.NODE_ENV === 'development') console.warn("No conversationId provided to generate-image");
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -18,6 +30,11 @@ export async function POST(request: Request) {
         { error: 'OpenRouter API key is not configured' },
         { status: 500 }
       );
+    }
+
+    // Save User Message
+    if (conversationId) {
+      await saveMessage(conversationId, 'user', prompt);
     }
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -70,7 +87,15 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ imageUrl });
+    // Save Assistant Message and Image
+    if (conversationId) {
+      // Save text message part? Usually image generators just return image.
+      // We'll save a message saying "Here is your image..."
+      await saveMessage(conversationId, 'assistant', `Here is your image for: "${prompt}"`);
+      await saveGeneratedImage(conversationId, imageUrl, prompt, aspectRatio);
+    }
+
+    return NextResponse.json({ imageUrl, conversationId });
 
   } catch (error) {
     console.error('Error in generate-image route:', error);

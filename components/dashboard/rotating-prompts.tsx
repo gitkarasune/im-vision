@@ -7,9 +7,10 @@ import promptsData from './load-prompt.json';
 
 interface RotatingPromptsProps {
     onSelect: (prompt: string) => void;
+    isLoading?: boolean;
 }
 
-export function RotatingPrompts({ onSelect }: RotatingPromptsProps) {
+export function RotatingPrompts({ onSelect, isLoading }: RotatingPromptsProps) {
     const [activePrompts, setActivePrompts] = useState<string[]>([]);
     const [promptIndex, setPromptIndex] = useState(0);
 
@@ -76,8 +77,9 @@ export function RotatingPrompts({ onSelect }: RotatingPromptsProps) {
                         {/* ALso add the functionality that when i click any of the buttons, automatically make the curosr or the form active as when i click on an input form */}
                         <Button
                             variant={"outline"}
-                            className='rounded-full p-5 cursor-pointer h-auto py-2'
+                            className='rounded-full p-5 cursor-pointer h-auto py-2 disabled:cursor-not-allowed disabled:opacity-50'
                             onClick={() => onSelect(prompt)}
+                            disabled={isLoading}
                         >
                             {prompt}
                         </Button>

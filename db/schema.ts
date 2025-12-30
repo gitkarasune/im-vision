@@ -75,10 +75,37 @@ export const conversation = pgTable("conversation", {
     .notNull(),
 });
 
+export const message = pgTable("message", {
+  id: text("id").primaryKey(),
+  content: text("content").notNull(),
+  role: text("role").notNull(), // 'user' | 'assistant'
+  conversationId: text("conversation_id")
+    .notNull()
+    .references(() => conversation.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const generatedImage = pgTable("generated_image", {
+  id: text("id").primaryKey(),
+  url: text("url").notNull(),
+  prompt: text("prompt").notNull(),
+  aspectRatio: text("aspect_ratio"),
+  conversationId: text("conversation_id")
+    .notNull()
+    .references(() => conversation.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at")
+    .$defaultFn(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
 export const schema = {
   user,
   session,
   account,
   verification,
-  conversation
+  conversation,
+  message,
+  generatedImage
 };

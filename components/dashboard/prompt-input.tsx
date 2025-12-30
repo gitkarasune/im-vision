@@ -62,7 +62,7 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
     const prompt = isControlled ? value : internalPrompt;
 
     const settingsState = useState<PromptSettings>({
-        aspectRatio: '1:1',
+        aspectRatio: 'Original',
         packshotMode: false,
         realisticShadows: false
     });
@@ -190,9 +190,10 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
                         value={prompt}
                         onChange={(e) => handlePromptChange(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Describe your image..."
+                        disabled={isLoading}
+                        placeholder={isLoading ? "Generating..." : "Describe your image..."}
                         className={cn(
-                            "w-full resize-none border-0 bg-transparent py-4 px-2 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 rounded-none",
+                            "w-full resize-none border-0 bg-transparent py-4 px-2 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 rounded-none disabled:cursor-not-allowed disabled:opacity-50",
                             isExpanded ? "flex-1 text-md sm:text-x min-h-[50vh]" : "min-h-[60px] max-h-[200px]"
                         )}
                     />
@@ -230,6 +231,7 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
                                                     <SelectValue placeholder="Select ratio" />
                                                 </SelectTrigger>
                                                 <SelectContent className='rounded-none bg-white dark:bg-black shadow-none'>
+                                                    <SelectItem value="Original">Original</SelectItem>
                                                     <SelectItem value="1:1">Square (1:1)</SelectItem>
                                                     <SelectItem value="16:9">Landscape (16:9)</SelectItem>
                                                     <SelectItem value="9:16">Portrait (9:16)</SelectItem>

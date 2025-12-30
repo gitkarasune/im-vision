@@ -52,6 +52,9 @@ export default function Dashboard() {
   const hasRunInitialParamRef = useRef(false);
 
   // Read Search Params on Mount
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+
   // Handlers
   const handleNewChat = () => {
     setMessages([]);
@@ -59,7 +62,50 @@ export default function Dashboard() {
     setGenerationStatus('idle');
     setIsLoading(false);
     setSelectedImage(null);
+    setCurrentChatId(null);
     router.push('/dashboard');
+  };
+
+  const handleSelectChat = async (id: string) => {
+    setIsLoading(true);
+    try {
+      // Import dynamic to avoid client-side bundling issues if action used directly?
+      // Next.js server actions can be imported securely.
+      const { getChat } = await import('@/app/actions/chat-actions');
+      const chatData = await getChat(id);
+
+      if (chatData) {
+        setCurrentChatId(chatData.id);
+        // Map saved messages to UI format
+        const uiMessages: ChatMessage[] = chatData.messages.map((m: any) => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+          image: m.role === 'assistant' && m.content.includes('Here is') ? chatData.images.find((img: any) => img.createdAt.getTime() >= m.createdAt.getTime() - 2000 && img.createdAt.getTime() <= m.createdAt.getTime() + 2000)?.url : undefined // loose matching or just rely on separate image view
+        }));
+        setMessages(uiMessages);
+
+        // Map saved images
+        const uiImages: GeneratedImage[] = chatData.images.map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          prompt: img.prompt,
+          aspectRatio: img.aspectRatio || '1:1',
+          createdAt: new Date(img.createdAt)
+        }));
+        setImages(uiImages);
+
+        setGenerationStatus('success');
+        // Close sidebar if mobile
+        // setIsSidebarOpen(false); 
+      }
+    } catch (error) {
+      console.error("Failed to load chat", error);
+      toast.error("Failed to load chat history");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSidebarHover = () => {
@@ -87,7 +133,21 @@ export default function Dashboard() {
     setMessages(prev => [...prev, userMsg]);
 
     try {
+      let activeChatId = currentChatId;
+
       // If this is a new chat (empty messages), create a chat title/history
+      if (!activeChatId) {
+        const title = prompt.length > 30 ? prompt.substring(0, 30) + '...' : prompt;
+        // Dynamically import to ensure client-side safety if needed, though direct import usually fine
+        const { createChat } = await import('@/app/actions/chat-actions');
+        const newId = await createChat(title);
+        if (newId) {
+          activeChatId = newId;
+          setCurrentChatId(newId);
+          setRefreshTrigger(prev => prev + 1);
+        }
+      }
+
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: {
@@ -95,6 +155,7 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           prompt,
+          conversationId: activeChatId,
           ...settings
         }),
       });
@@ -204,6 +265,8 @@ export default function Dashboard() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         onNewChat={handleNewChat}
+        refreshTrigger={refreshTrigger}
+        onSelectChat={handleSelectChat}
       />
 
       {/* Overlay to close sidebar on click outside */}
