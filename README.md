@@ -59,7 +59,7 @@ Follow these steps to set up IMvision locally.
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/gitkarasune/img-nano.git
+   git clone https://github.com/gitkarasune/im-vision.git
    cd im-vision
    ```
 
