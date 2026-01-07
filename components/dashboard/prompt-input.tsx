@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -11,7 +11,8 @@ import {
     Moon,
     Ratio,
     Maximize2,
-    Minimize2
+    Minimize2,
+    Loader2
 } from 'lucide-react';
 import {
     Popover,
@@ -36,6 +37,8 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { authClient } from "@/lib/auth-client";
+import { updatePreferences } from "@/app/actions/user-actions";
 
 export interface PromptSettings {
     aspectRatio: string;
@@ -52,14 +55,32 @@ interface PromptInputProps {
     onValueChange?: (value: string) => void;
 }
 
+// Debounce helper
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
+        return () => { clearTimeout(handler); };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 export function PromptInput({ onGenerate, isLoading, className, value, onValueChange }: PromptInputProps) {
+    const { data: session } = authClient.useSession();
+
     // Internal state for uncontrolled usage fallback
     const [internalPrompt, setInternalPrompt] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
     const [showExpandIcon, setShowExpandIcon] = useState(false);
 
+    // Enhanced Mode State
+    const [isEnhancedMode, setIsEnhancedMode] = useState(false);
+    const [suggestion, setSuggestion] = useState('');
+    const [isFetchingSuggestion, setIsFetchingSuggestion] = useState(false);
+
     const isControlled = value !== undefined;
     const prompt = isControlled ? value : internalPrompt;
+    const debouncedPrompt = useDebounce(prompt, 500);
 
     const settingsState = useState<PromptSettings>({
         aspectRatio: 'Original',
@@ -69,6 +90,80 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
     const [settings, setSettings] = settingsState;
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Load initial preference for enhance mode
+    useEffect(() => {
+        if (session?.user && (session.user as any).preferences?.enhanceMode !== undefined) {
+            setIsEnhancedMode((session.user as any).preferences.enhanceMode);
+        }
+    }, [session]);
+
+    // Persist Enhanced Mode
+    const toggleEnhancedMode = async () => {
+        const newState = !isEnhancedMode;
+        setIsEnhancedMode(newState);
+
+        if (newState) {
+            toast.success("AI Autocomplete Active");
+        } else {
+            setSuggestion('');
+        }
+
+        if (session?.user) {
+            try {
+                // Merge with existing preferences
+                const currentPrefs = (session.user as any).preferences || {};
+                await updatePreferences({
+                    ...currentPrefs,
+                    enhanceMode: newState
+                });
+            } catch (e) {
+                console.error("Failed to save enhance preference");
+            }
+        }
+    };
+
+    // Autocomplete Logic
+    useEffect(() => {
+        if (!isEnhancedMode || !debouncedPrompt || debouncedPrompt.length < 5) {
+            setSuggestion('');
+            return;
+        }
+
+        const fetchSuggestion = async () => {
+            setIsFetchingSuggestion(true);
+            try {
+                const res = await fetch('/api/autocomplete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: debouncedPrompt })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.suggestion) {
+                        setSuggestion(data.suggestion);
+                    } else {
+                        setSuggestion('');
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsFetchingSuggestion(false);
+            }
+        };
+
+        fetchSuggestion();
+
+    }, [debouncedPrompt, isEnhancedMode]);
+
+    // Clear suggestion if prompt changes to something that doesn't match start (basic sync)
+    // Actually, we just clear suggestion on typing and wait for debounce to fetch new one
+    // to avoid stale overlays.
+    useEffect(() => {
+        setSuggestion('');
+    }, [prompt]);
+
 
     const handlePromptChange = (newValue: string) => {
         if (isControlled && onValueChange) {
@@ -127,6 +222,7 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
 
         // Clear input
         handlePromptChange('');
+        setSuggestion('');
 
         // Return to normal mode
         setIsExpanded(false);
@@ -138,6 +234,21 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Tab' && suggestion) {
+            e.preventDefault();
+            // Accept suggestion
+            handlePromptChange(prompt + suggestion);
+            setSuggestion('');
+            return;
+        }
+
+        if (e.key === 'Escape' && suggestion) {
+            e.preventDefault();
+            // Reject/Clear suggestion
+            setSuggestion('');
+            return;
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSubmit();
@@ -184,18 +295,40 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
                         </div>
                     )}
 
-                    <Textarea
-                        ref={textareaRef}
-                        value={prompt}
-                        onChange={(e) => handlePromptChange(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        disabled={isLoading}
-                        placeholder={isLoading ? "Generating..." : "Describe your image..."}
-                        className={cn(
-                            "w-full resize-none border-0 bg-transparent py-4 px-2 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 rounded-none disabled:cursor-not-allowed disabled:opacity-50",
-                            isExpanded ? "flex-1 text-md sm:text-x min-h-[50vh]" : "min-h-[60px] max-h-[200px]"
+                    <div className="relative">
+                        <Textarea
+                            ref={textareaRef}
+                            value={prompt}
+                            onChange={(e) => handlePromptChange(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            disabled={isLoading}
+                            placeholder={isLoading ? "Generating..." : "Describe your image..."}
+                            className={cn(
+                                "w-full resize-none border-0 bg-transparent py-4 px-2 focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50 rounded-none disabled:cursor-not-allowed disabled:opacity-50 relative z-10",
+                                isExpanded ? "flex-1 text-md sm:text-x min-h-[50vh]" : "min-h-[60px] max-h-[200px]"
+                            )}
+                        />
+                        {/* Ghost Text Overlay */}
+                        {isEnhancedMode && suggestion && !isLoading && (
+                            <div
+                                className={cn(
+                                    "absolute top-0 left-0 w-full h-full py-4 px-2 pointer-events-none text-muted-foreground/40 whitespace-pre-wrap break-words overflow-hidden",
+                                    isExpanded ? "text-md sm:text-x" : ""
+                                )}
+                                aria-hidden="true"
+                            >
+                                <span className="opacity-0">{prompt}</span>
+                                <span className={cn("text-purple-400 opacity-60")}>{suggestion}</span>
+                                <span className="text-xs ml-2 opacity-50 select-none border rounded px-1">[Tab]</span>
+                            </div>
                         )}
-                    />
+                        {/* Loading indicator for autocomplete */}
+                        {isEnhancedMode && isFetchingSuggestion && !suggestion && !isLoading && (
+                            <div className="absolute top-4 right-2 pointer-events-none">
+                                <Loader2 className="w-3 h-3 text-purple-600 animate-spin" />
+                            </div>
+                        )}
+                    </div>
 
                     {/* Footer / Toolbar */}
                     <div className="flex items-center justify-between p-2 bg-white dark:bg-black border-t">
@@ -266,15 +399,20 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
                                 </PopoverContent>
                             </Popover>
 
-                            {/* Add this functionality that when users click this or make ths active, now the prompt will be ehnace in a way that when users now type on the input, a suggest will be made automatically and random correctly and checked and if the users like it and press tab  button on keyboard, it will automatically filled everything at once but if don't like it, they click the ESC key, it goes and once they type anywords again too or any letter, the suggestion continues as well, once its turn on, i want the text to be text-purple-600  */}
+
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 rounded-none text-muted-foreground hover:text-purple-500 transition-colors cursor-pointer"
-                                onClick={handleEnhancePrompt}
-                                title="Enhance Prompt"
+                                className={cn(
+                                    "h-8 w-8 rounded-none transition-all cursor-pointer",
+                                    isEnhancedMode
+                                        ? "text-purple-600 bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30"
+                                        : "text-muted-foreground hover:text-purple-500"
+                                )}
+                                onClick={toggleEnhancedMode}
+                                title={isEnhancedMode ? "Disable Auto-Enhance" : "Enable Auto-Enhance"}
                             >
-                                <Sparkles className="w-4 h-4" />
+                                <Sparkles className={cn("w-4 h-4", isEnhancedMode && "fill-purple-600")} />
                             </Button>
                         </div>
 
@@ -328,3 +466,4 @@ export function PromptInput({ onGenerate, isLoading, className, value, onValueCh
         </>
     );
 }
+

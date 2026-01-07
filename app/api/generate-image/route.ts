@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import { saveMessage, saveGeneratedImage } from '@/app/actions/chat-actions';
+import { db } from '@/db/drizzle';
+import { user } from '@/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import { auth } from '@/lib/auth';
+import { headers } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +17,23 @@ export async function POST(request: Request) {
       );
     }
 
+    // Auth check to attribute stats
+    const session = await auth.api.getSession({
+      headers: await headers()
+    });
+
+    if (session?.user) {
+      // Increment prompts count immediately
+      // We catch potential errors here so we don't block generation if DB metric update fails
+      try {
+        await db.update(user)
+          .set({ promptsCount: sql`${user.promptsCount} + 1` })
+          .where(eq(user.id, session.user.id));
+      } catch (e) {
+        console.error("Failed to update prompts count", e);
+      }
+    }
+
     // Check if conversation ID provided. If not, client should have created one. or we create here?
     // Client ensures conversationId via createChat for new chats. But here, let's assume client passes it.
     // If client is just "prompting" without chat ID (logic we updated in dashboard), dashboard creates chat first.
@@ -20,7 +42,7 @@ export async function POST(request: Request) {
     if (!conversationId) {
       // Fallback or error? Let's just create one if missing or error.
       // Actually, let's require it for persistence.
-      if (process.env.NODE_ENV === 'development') console.warn("No conversationId provided to generate-image"); 
+      if (process.env.NODE_ENV === 'development') console.warn("No conversationId provided to generate-image");
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -85,6 +107,17 @@ export async function POST(request: Request) {
         { error: 'No image generated in response' },
         { status: 500 }
       );
+    }
+
+    // Only increment image count on success
+    if (session?.user) {
+      try {
+        await db.update(user)
+          .set({ imagesCount: sql`${user.imagesCount} + 1` })
+          .where(eq(user.id, session.user.id));
+      } catch (e) {
+        console.error("Failed to update images count", e);
+      }
     }
 
     // Save Assistant Message and Image

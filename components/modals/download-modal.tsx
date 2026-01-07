@@ -43,6 +43,10 @@ export function DownloadModal({ open, onOpenChange, image }: DownloadModalProps)
                 }
             );
 
+            // Notify server that this image is 'downloaded' (showcased)
+            const { markImageAsDownloaded } = await import('@/app/actions/image-actions');
+            await markImageAsDownloaded(image.id);
+
             const response = await fetch(image.url);
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -56,6 +60,7 @@ export function DownloadModal({ open, onOpenChange, image }: DownloadModalProps)
 
             onOpenChange(false);
         } catch (error) {
+            console.error(error);
             toast.error('Download failed');
         }
     }

@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -9,6 +9,10 @@ export const user = pgTable("user", {
     .notNull(),
   image: text("image"),
   theme: text("theme").default('system'),
+  promptsCount: integer("prompts_count").default(0),
+  imagesCount: integer("images_count").default(0),
+  location: text("location"),
+  preferences: jsonb("preferences"),
   createdAt: timestamp("created_at")
     .$defaultFn(() => /* @__PURE__ */ new Date())
     .notNull(),
@@ -92,6 +96,7 @@ export const generatedImage = pgTable("generated_image", {
   url: text("url").notNull(),
   prompt: text("prompt").notNull(),
   aspectRatio: text("aspect_ratio"),
+  isDownloaded: boolean("is_downloaded").default(false),
   conversationId: text("conversation_id")
     .notNull()
     .references(() => conversation.id, { onDelete: "cascade" }),
@@ -109,3 +114,4 @@ export const schema = {
   message,
   generatedImage
 };
+
